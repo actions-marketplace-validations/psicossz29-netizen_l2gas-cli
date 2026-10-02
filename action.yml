@@ -36,10 +36,6 @@ runs:
       with:
         node-version: '20'
 
-    - name: Install @psicossz/l2gas
-      shell: bash
-      run: npm install -g @psicossz/l2gas@latest
-
     - name: Run gas check
       id: check
       shell: bash
@@ -49,14 +45,21 @@ runs:
         echo "Max    : ${{ inputs.max-gwei }} Gwei"
         echo ""
 
+        ACTION_DIR="${{ github.action_path }}"
+        BIN_PATH="$ACTION_DIR/bin/l2gas.js"
+
+        if [ ! -f "$BIN_PATH" ]; then
+          BIN_PATH="./bin/l2gas.js"
+        fi
+
         set +e
-        JSON_OUT=$(l2gas ${{ inputs.chains }} --threshold=${{ inputs.max-gwei }} --json 2>/tmp/l2gas_stderr.txt)
+        JSON_OUT=$(node "$BIN_PATH" ${{ inputs.chains }} --threshold=${{ inputs.max-gwei }} --json 2>/tmp/l2gas_stderr.txt)
         EXIT_CODE=$?
         STDERR=$(cat /tmp/l2gas_stderr.txt)
         set -e
 
         # Display human-readable output
-        l2gas ${{ inputs.chains }} || true
+        node "$BIN_PATH" ${{ inputs.chains }} || true
 
         # Set outputs
         {
