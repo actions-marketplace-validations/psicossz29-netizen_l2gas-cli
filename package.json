@@ -1,0 +1,46 @@
+{
+  "name": "@psicossz/l2gas",
+  "version": "1.0.0",
+  "description": "⚡ Zero-dependency CLI to check real-time gas prices and transfer costs on Base, Arbitrum, and Polygon L2 networks.",
+  "main": "lib/index.js",
+  "bin": {
+    "l2gas": "bin/l2gas.js"
+  },
+  "scripts": {
+    "start": "node bin/l2gas.js",
+    "test": "node bin/l2gas.js --json"
+  },
+  "keywords": [
+    "l2",
+    "gas",
+    "base",
+    "arbitrum",
+    "polygon",
+    "ethereum",
+    "crypto",
+    "web3",
+    "evm",
+    "cli",
+    "gas-price",
+    "layer2",
+    "defi",
+    "blockchain"
+  ],
+  "author": "Genesis Node <opensource@genesis.node>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PsicoSsz/l2gas-cli.git"
+  },
+  "homepage": "https://github.com/PsicoSsz/l2gas-cli#readme",
+  "bugs": {
+    "url": "https://github.com/PsicoSsz/l2gas-cli/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "funding": {
+    "type": "crypto",
+    "url": "https://github.com/PsicoSsz/l2gas-cli#support"
+  }
+}
