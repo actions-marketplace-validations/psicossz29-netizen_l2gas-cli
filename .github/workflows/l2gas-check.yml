@@ -1,0 +1,72 @@
+name: L2 Gas Check
+
+on:
+  workflow_call:
+    inputs:
+      chains:
+        description: 'Space-separated list of chains to check (e.g. "base arbitrum")'
+        required: false
+        default: 'base arbitrum optimism'
+        type: string
+      max-gwei:
+        description: 'Maximum acceptable gas price in Gwei before blocking deploy'
+        required: false
+        default: '1.0'
+        type: string
+      fail-on-exceed:
+        description: 'Fail the workflow if gas exceeds threshold'
+        required: false
+        default: 'true'
+        type: boolean
+  workflow_dispatch:
+    inputs:
+      chains:
+        description: 'Chains to check'
+        default: 'base arbitrum optimism'
+      max-gwei:
+        description: 'Max Gwei threshold'
+        default: '1.0'
+
+jobs:
+  gas-check:
+    name: ⛽ L2 Gas Check
+    runs-on: ubuntu-latest
+    outputs:
+      gas-ok: ${{ steps.check.outputs.gas-ok }}
+      report: ${{ steps.check.outputs.report }}
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install l2gas
+        run: npm install -g @psicossz/l2gas
+
+      - name: Check L2 gas prices
+        id: check
+        run: |
+          echo "Checking gas on: ${{ inputs.chains }}"
+          echo "Max threshold: ${{ inputs.max-gwei }} Gwei"
+
+          # Run and capture output + exit code
+          set +e
+          OUTPUT=$(npx @psicossz/l2gas ${{ inputs.chains }} --threshold=${{ inputs.max-gwei }} --json 2>&1)
+          EXIT_CODE=$?
+          set -e
+
+          echo "$OUTPUT"
+          echo "report<<EOF" >> $GITHUB_OUTPUT
+          echo "$OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "gas-ok=true" >> $GITHUB_OUTPUT
+            echo "✅ Gas is within acceptable range. Deploy can proceed."
+          else
+            echo "gas-ok=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Gas exceeds threshold of ${{ inputs.max-gwei }} Gwei!"
+            if [ "${{ inputs.fail-on-exceed }}" = "true" ]; then
+              exit 1
+            fi
+          fi

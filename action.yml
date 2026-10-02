@@ -1,0 +1,83 @@
+name: 'L2 Gas Check'
+description: '⚡ Check real-time gas prices on L2 networks and block deploys if gas exceeds a threshold.'
+author: 'psicossz29-netizen'
+
+branding:
+  icon: 'zap'
+  color: 'yellow'
+
+inputs:
+  chains:
+    description: 'Space-separated list of chains to check (base, arbitrum, optimism, polygon, linea, scroll, zksync)'
+    required: false
+    default: 'base arbitrum optimism'
+  max-gwei:
+    description: 'Maximum acceptable gas price in Gwei. Exits with code 1 if any chain exceeds this value.'
+    required: false
+    default: '1.0'
+  fail-on-exceed:
+    description: 'Fail the step if gas exceeds the threshold. Set to "false" to warn only.'
+    required: false
+    default: 'true'
+
+outputs:
+  gas-ok:
+    description: '"true" if all chains are within the threshold, "false" otherwise.'
+    value: ${{ steps.check.outputs.gas-ok }}
+  report:
+    description: 'JSON report of gas prices across all queried chains.'
+    value: ${{ steps.check.outputs.report }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install @psicossz/l2gas
+      shell: bash
+      run: npm install -g @psicossz/l2gas@latest
+
+    - name: Run gas check
+      id: check
+      shell: bash
+      run: |
+        echo "::group::⛽ L2 Gas Check"
+        echo "Chains : ${{ inputs.chains }}"
+        echo "Max    : ${{ inputs.max-gwei }} Gwei"
+        echo ""
+
+        set +e
+        JSON_OUT=$(l2gas ${{ inputs.chains }} --threshold=${{ inputs.max-gwei }} --json 2>/tmp/l2gas_stderr.txt)
+        EXIT_CODE=$?
+        STDERR=$(cat /tmp/l2gas_stderr.txt)
+        set -e
+
+        # Display human-readable output
+        l2gas ${{ inputs.chains }} || true
+
+        # Set outputs
+        {
+          echo "report<<EOF"
+          echo "$JSON_OUT"
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
+
+        if [ $EXIT_CODE -eq 0 ]; then
+          echo "gas-ok=true" >> "$GITHUB_OUTPUT"
+          echo ""
+          echo "✅ Gas is within the ${{ inputs.max-gwei }} Gwei threshold. Deploy can proceed."
+        else
+          echo "gas-ok=false" >> "$GITHUB_OUTPUT"
+          echo ""
+          echo "⚠️  $STDERR"
+          if [ "${{ inputs.fail-on-exceed }}" = "true" ]; then
+            echo "::error::Gas exceeded threshold of ${{ inputs.max-gwei }} Gwei. Deploy blocked."
+            exit 1
+          else
+            echo "::warning::Gas exceeded threshold of ${{ inputs.max-gwei }} Gwei. Continuing anyway (fail-on-exceed=false)."
+          fi
+        fi
+        echo "::endgroup::"

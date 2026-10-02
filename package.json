@@ -1,7 +1,7 @@
 {
   "name": "@psicossz/l2gas",
-  "version": "1.0.0",
-  "description": "⚡ Zero-dependency CLI to check real-time gas prices and transfer costs on Base, Arbitrum, and Polygon L2 networks.",
+  "version": "1.1.0",
+  "description": "⚡ Zero-dependency CLI for real-time L2 gas prices on Base, Arbitrum, Optimism, Polygon, Linea, Scroll & zkSync Era. CI/CD threshold alerts included.",
   "main": "lib/index.js",
   "bin": {
     "l2gas": "bin/l2gas.js"

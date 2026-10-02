@@ -2,79 +2,134 @@
 
 const { getAllChainsGas, getChainGas, CHAINS } = require('../lib/index');
 
-const SUPPORT_WALLET_EVM = "0x720ffce9834B4e83eBf63b6B9f142B8B77f54281";
-const SUPPORT_WALLET_SOL = "2DLPwCgHCKyFuAbzJ4APCsiMy9GcztXavk94wtW6uxpV";
+const SUPPORT_WALLET_EVM = '0x720ffce9834B4e83eBf63b6B9f142B8B77f54281';
+const SUPPORT_WALLET_SOL = '2DLPwCgHCKyFuAbzJ4APCsiMy9GcztXavk94wtW6uxpV';
+const VERSION = '1.1.0';
+
+const CHAIN_ALIASES = {
+    op: 'optimism', eth: 'base', zk: 'zksync', 'zksync-era': 'zksync'
+};
 
 async function main() {
     const args = process.argv.slice(2);
     const isJson = args.includes('--json');
-    const chainArg = args.find(a => !a.startsWith('-'))?.toLowerCase();
+    const isWatch = args.includes('--watch');
+    const thresholdArg = args.find(a => a.startsWith('--threshold=') || a.startsWith('--max-gwei='));
+    const threshold = thresholdArg ? parseFloat(thresholdArg.split('=')[1]) : null;
+    const chainArgs = args.filter(a => !a.startsWith('-'));
+    const resolvedChains = chainArgs.map(c => CHAIN_ALIASES[c] || c).filter(c => CHAINS[c]);
+
+    if (args.includes('--version') || args.includes('-v')) {
+        console.log(`@psicossz/l2gas v${VERSION}`);
+        process.exit(0);
+    }
 
     if (args.includes('--help') || args.includes('-h')) {
         console.log(`
-Usage: l2gas [options] [chain]
+@psicossz/l2gas v${VERSION} — Real-time L2 gas & transfer cost tracker
 
-Chains:
-  base       Query Base L2 gas
-  arbitrum   Query Arbitrum One gas
-  polygon    Query Polygon PoS gas
+Usage: l2gas [chains...] [options]
+
+Chains (default: all):
+  base       Base (OP Stack)          #8453
+  arbitrum   Arbitrum One (Nitro)     #42161
+  optimism   Optimism (OP Stack)      #10
+  polygon    Polygon PoS              #137
+  linea      Linea (zkEVM)            #59144
+  scroll     Scroll (zkEVM)           #534352
+  zksync     zkSync Era (zkRollup)    #324
 
 Options:
-  --json     Output results as formatted JSON
-  --help     Show this message
+  --json               Output as JSON (CI/scripting friendly)
+  --threshold=<gwei>   Exit code 1 if ANY chain exceeds <gwei> (use in CI/CD)
+  --max-gwei=<gwei>    Alias for --threshold
+  --watch              Re-check every 30s
+  --version            Show version
+  --help               Show this message
 
-Donations & Support:
-  EVM (Base/Polygon): ${SUPPORT_WALLET_EVM}
-  Solana:             ${SUPPORT_WALLET_SOL}
+Examples:
+  l2gas                          # All chains
+  l2gas base arbitrum            # Specific chains
+  l2gas --json                   # JSON output
+  l2gas --threshold=0.01         # Fail CI if gas > 0.01 Gwei
+  l2gas base --threshold=0.005   # Check only Base, fail if > 0.005 Gwei
+
+Support this tool:
+  EVM (Base/Arbitrum/Polygon/Optimism): ${SUPPORT_WALLET_EVM}
+  Solana:                               ${SUPPORT_WALLET_SOL}
 `);
         process.exit(0);
     }
 
-    try {
-        let data;
-        if (chainArg && CHAINS[chainArg]) {
-            data = [await getChainGas(chainArg)];
-        } else {
-            data = await getAllChainsGas();
-        }
+    async function runOnce() {
+        const chainsToQuery = resolvedChains.length > 0 ? resolvedChains : null;
 
-        if (isJson) {
-            console.log(JSON.stringify({
-                timestamp: new Date().toISOString(),
-                chains: data,
-                support_wallet: SUPPORT_WALLET_EVM
-            }, null, 2));
-            return;
-        }
+        try {
+            const data = await getAllChainsGas(chainsToQuery);
 
-        console.log('\n===============================================================');
-        console.log('  ⚡ L2GAS | REAL-TIME L2 GAS & TRANSFER COST TRACKER');
-        console.log('===============================================================\n');
+            if (isJson) {
+                const output = {
+                    version: VERSION,
+                    timestamp: new Date().toISOString(),
+                    chains: data,
+                    support_wallet_evm: SUPPORT_WALLET_EVM
+                };
+                console.log(JSON.stringify(output, null, 2));
 
-        console.log('Chain               Gas (Gwei)      Est. Transfer ($)     Block');
-        console.log('---------------------------------------------------------------');
-
-        for (const item of data) {
-            if (item.status === 'ONLINE') {
-                const chainName = item.chain.padEnd(18, ' ');
-                const gas = `${item.gasPriceGwei} Gwei`.padEnd(16, ' ');
-                const cost = `$${item.transferCostUsd}`.padEnd(22, ' ');
-                const block = `#${item.blockNumber}`;
-                console.log(`${chainName}  ${gas}  ${cost}  ${block}`);
-            } else {
-                console.log(`${item.chain.padEnd(18, ' ')}  [DEGRADED: ${item.error}]`);
+                // Threshold check for CI
+                if (threshold !== null) {
+                    const exceeded = data.filter(c => c.status === 'ONLINE' && c.gasPriceGwei > threshold);
+                    if (exceeded.length > 0) {
+                        process.stderr.write(`[l2gas] THRESHOLD EXCEEDED: ${exceeded.map(c => `${c.chain} ${c.gasPriceGwei} Gwei`).join(', ')} > ${threshold} Gwei\n`);
+                        process.exit(1);
+                    }
+                }
+                return;
             }
+
+            console.log('\n╔══════════════════════════════════════════════════════════════╗');
+            console.log(`║  ⚡ L2GAS v${VERSION} | REAL-TIME L2 GAS & TRANSFER COSTS        ║`);
+            console.log('╚══════════════════════════════════════════════════════════════╝\n');
+            console.log('Chain               Tech          Gas (Gwei)    Transfer ($)   Block');
+            console.log('──────────────────────────────────────────────────────────────────');
+
+            let thresholdExceeded = false;
+            for (const item of data) {
+                if (item.status === 'ONLINE') {
+                    const name = item.chain.padEnd(18);
+                    const layer = (item.layer || '').padEnd(12);
+                    const gas = `${item.gasPriceGwei} Gwei`.padEnd(14);
+                    const cost = `$${item.transferCostUsd}`.padEnd(15);
+                    const block = `#${item.blockNumber}`;
+                    const alert = threshold && item.gasPriceGwei > threshold ? ' ⚠️ OVER THRESHOLD' : '';
+                    console.log(`${name}  ${layer}  ${gas}  ${cost}  ${block}${alert}`);
+                    if (threshold && item.gasPriceGwei > threshold) thresholdExceeded = true;
+                } else {
+                    console.log(`${item.chain.padEnd(18)}  ${'ERROR'.padEnd(12)}  [${item.error?.slice(0, 45)}]`);
+                }
+            }
+
+            console.log('──────────────────────────────────────────────────────────────────');
+            console.log('☕ Support: EVM ' + SUPPORT_WALLET_EVM);
+            console.log('           SOL ' + SUPPORT_WALLET_SOL);
+            console.log('══════════════════════════════════════════════════════════════════\n');
+
+            if (thresholdExceeded) {
+                console.error(`[l2gas] ⚠️  Gas threshold of ${threshold} Gwei exceeded — deploy paused.`);
+                process.exit(1);
+            }
+        } catch (err) {
+            console.error('[l2gas ERROR]', err.message);
+            process.exit(1);
         }
+    }
 
-        console.log('\n---------------------------------------------------------------');
-        console.log('☕ Support Autonomous Genesis Node Development:');
-        console.log(`   EVM (Base/Polygon/Arbitrum): ${SUPPORT_WALLET_EVM}`);
-        console.log(`   Solana:                     ${SUPPORT_WALLET_SOL}`);
-        console.log('===============================================================\n');
-
-    } catch (err) {
-        console.error('[ERROR]', err.message);
-        process.exit(1);
+    if (isWatch) {
+        console.log('[l2gas] Watch mode — refreshing every 30s. Ctrl+C to stop.\n');
+        await runOnce();
+        setInterval(runOnce, 30000);
+    } else {
+        await runOnce();
     }
 }
 
