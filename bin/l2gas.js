@@ -4,7 +4,7 @@ const { getAllChainsGas, getChainGas, CHAINS } = require('../lib/index');
 
 const SUPPORT_WALLET_EVM = '0x720ffce9834B4e83eBf63b6B9f142B8B77f54281';
 const SUPPORT_WALLET_SOL = '2DLPwCgHCKyFuAbzJ4APCsiMy9GcztXavk94wtW6uxpV';
-const VERSION = '1.1.0';
+const VERSION = '1.1.1';
 
 const CHAIN_ALIASES = {
     op: 'optimism', eth: 'base', zk: 'zksync', 'zksync-era': 'zksync'
