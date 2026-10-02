@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run once daily at midnight UTC to verify public RPC health
+    - cron: '0 0 * * *'
+
+jobs:
+  test:
+    name: Test L2 RPC Endpoints & CLI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Verify CLI execution
+        run: |
+          node bin/l2gas.js --version
+          node bin/l2gas.js --json
+          node bin/l2gas.js base --threshold=100
