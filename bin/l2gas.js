@@ -81,7 +81,8 @@ Support this tool:
                     const exceeded = data.filter(c => c.status === 'ONLINE' && c.gasPriceGwei > threshold);
                     if (exceeded.length > 0) {
                         process.stderr.write(`[l2gas] THRESHOLD EXCEEDED: ${exceeded.map(c => `${c.chain} ${c.gasPriceGwei} Gwei`).join(', ')} > ${threshold} Gwei\n`);
-                        process.exit(1);
+                        process.exitCode = 1;
+                        return;
                     }
                 }
                 return;
@@ -116,11 +117,13 @@ Support this tool:
 
             if (thresholdExceeded) {
                 console.error(`[l2gas] ⚠️  Gas threshold of ${threshold} Gwei exceeded — deploy paused.`);
-                process.exit(1);
+                process.exitCode = 1;
+                return;
             }
         } catch (err) {
             console.error('[l2gas ERROR]', err.message);
-            process.exit(1);
+            process.exitCode = 1;
+            return;
         }
     }
 
